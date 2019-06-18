@@ -1,0 +1,242 @@
+---
+title: "British Panel Household Survey (BHPS) Project"
+author: "Alexander von Paumgartten"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(tinytex.verbose = TRUE)
+```
+
+
+### Introduction:
+
+In this report we analyze the British Panel Household survey (BHPS) 1991 (Wave 1) that has sample dataset of 3500 records. The BHPS is designed as a research resource for a wide range of social science disciplines and to support interdisciplinary research in many areas. The main objective of the survey is to further understanding of social and economic change at the individual and household level in Britain, to identify, model and forecast such changes, their causes and consequences in relation to a range of socio-economic variables.
+The BHPS was designed as an annual survey of each adult (aged 16+) member of a nationally representative sample of more than 5,000 households, making a total of approximately 10,000 individual interviews. The same individuals are re-interviewed in successive waves and, if they split off from original households, all adult members of their new households are also interviewed.
+
+### Methods & Analysis: 
+
+The objective of this analysis was to determine how the various factors are associated with Annual Household Income of the individual. Initially we had 10 input variables that include demographic as well as socio-economic indicators such as sex, age, political affiliation, no. of cars, weekly hours worked, metropolitan area, labor status, current job, no. of persons in household and housing tenure. Since, our objective is to predict the Annual Household Income which is continuous in nature, we will be using the machine learning technique of Multiple Linear Regression.
+The columns in the dataset are as below: 
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+if(!require(dplyr)) install.packages("dplyr", repos = "")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "")
+if(!require(forcats)) install.packages("forcats", repos = "")
+if(!require(stargazer)) install.packages("stargazer", repos = "")
+
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(stargazer)
+
+## Read a csv file
+bhps_data <- read.csv("https://raw.github.com/vonpaumgartten/BHPS/master/BHPS_Raw_Data.csv")
+
+## Dimesions of the dataset
+dim(bhps_data) ## 3500 rows and 11 columns
+
+## Columns in the dataset
+str(bhps_data)
+
+```
+
+<br>
+We initiated the data analysis by viewing the summary of the dataset that helped us to understand the data in summarized form using descriptive statistics. 
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+## Summary of the dataset
+summary(bhps_data)
+```
+
+<br>
+We observed that there are records that have missing values (coded as -9) and also, the variables such as sex, aregion etc. are categorical variables but being considered as continuous variables. As a next step, we remove the records with these missing values and then transform the columns with categorical values into factors. We still observed that there exists multiple categories with very low frequency, and hence, apart from the top 3 categories, we combine all the remaining categories as 'Others' that makes the data manageable and improve its usability.
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+##Removing all the records with negative values
+bhps_data = bhps_data[!rowSums(bhps_data < 0), ]
+
+## Transforming the numerically coded variables into factors
+bhps_data$sex <- as.factor(bhps_data$sex)
+bhps_data$avote <- as.factor(bhps_data$avote)
+bhps_data$aregion <- as.factor(bhps_data$aregion)
+bhps_data$ajbstat <- as.factor(bhps_data$ajbstat)
+bhps_data$ajbterm <- as.factor(bhps_data$ajbterm)
+bhps_data$atenure <- as.factor(bhps_data$atenure)
+
+
+## Merge the categories to ensure no more than 4 categories per variable
+
+bhps_data$avote <- fct_collapse(bhps_data$avote, Others = c("4","5","6","7","8","10","11"))
+bhps_data$aregion <- fct_collapse(bhps_data$aregion, Others = c("1","2","5","6","7","8","9","10","11","12","13","14","15","16","17"))
+bhps_data$ajbstat <- fct_collapse(bhps_data$ajbstat, Others = c("1","3","4","5","7","8","10"))
+bhps_data$atenure <- fct_collapse(bhps_data$atenure, Others = c("4","5","6","7","8"))
+
+## Summary of the dataset
+summary(bhps_data)
+
+```
+
+<br>
+We then start with the data analysis by visualizing box-plots for all the categorical variables and scatterplots for continuous variables in order to identify their relationship with Annual Household Income (afihhyr). The box-plot analysis highlighted the outliers present in the data within various categorical variables.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+## Box-plots for Categorical variables
+box_plot_sex <- ggplot(bhps_data, aes(x=sex, y=afihhyr, group=sex))
+box_plot_sex + geom_boxplot(outlier.colour = "red") +
+  ggtitle("Annual Household Income by Sex")
+
+box_plot_avote <- ggplot(bhps_data, aes(x=avote, y=afihhyr, group=avote))
+box_plot_avote + geom_boxplot(outlier.colour = "red") +
+  ggtitle("Annual Household Income by Political Party Supported")
+
+box_plot_aregion <- ggplot(bhps_data, aes(x=aregion, y=afihhyr, group=aregion))
+box_plot_aregion + geom_boxplot(outlier.colour = "red",outlier.size = 1) +
+  ggtitle("Annual Household Income by Region,Metropolitan Area")
+
+box_plot_ajbstat <- ggplot(bhps_data, aes(x=ajbstat, y=afihhyr, group=ajbstat))
+box_plot_ajbstat + geom_boxplot(outlier.colour = "red",outlier.size = 1) +
+  ggtitle("Annual Household Income by Current labour force status")
+
+box_plot_ajbterm <- ggplot(bhps_data, aes(x=ajbterm, y=afihhyr, group=ajbterm))
+box_plot_ajbterm + geom_boxplot(outlier.colour = "red",outlier.size = 1) +
+  ggtitle("Annual Household Income by Current Job")
+
+box_plot_atenure <- ggplot(bhps_data, aes(x=atenure, y=afihhyr, group=atenure))
+box_plot_atenure + geom_boxplot(outlier.colour = "red",outlier.size = 1) +
+  ggtitle("Annual Household Income by Housing tenure")
+```
+
+<br>
+Using scatterplots we identified that afihhyr has strong positive linear relationship with ancars, AJBHRS and ahhsize, while some degree of linear relationship with aage. 
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+## Scatter-plots for Continuous variables
+
+ggplot(bhps_data, aes(x = aage, y = afihhyr)) + geom_point() +
+  labs(title = "Annual Household Income by Age")
+
+ggplot(bhps_data, aes(x = AJBHRS, y = afihhyr)) + geom_point() +
+  labs(title = "Annual Household Income by Hours worked per week")
+
+ggplot(bhps_data, aes(x = ancars, y = afihhyr)) + geom_point() +
+  labs(title = "Annual Household Income by Cars available")
+
+ggplot(bhps_data, aes(x = ahhsize, y = afihhyr)) + geom_point() +
+  labs(title = "Annual Household Income by Persons in household")
+```
+
+<br>
+To identify the significance of categorical variables, we further performed Analysis-of-Variance (ANOVA) to determine if the classes within the categorical variable have similar afihhyr. We observed that variables avote, aregion and atenure have p-value <0.05 and hence, there is a statistical difference between the classes with respect to afihhyr.
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+## ANOVA Tests
+sex_anova <- aov(afihhyr~sex, data = bhps_data)
+avote_anova <- aov(afihhyr~avote, data = bhps_data)
+aregion_anova <- aov(afihhyr~aregion, data = bhps_data)
+ajbstat_anova <- aov(afihhyr~ajbstat, data = bhps_data)
+ajbterm_anova <- aov(afihhyr~ajbterm, data = bhps_data)
+atenure_anova <- aov(afihhyr~atenure, data = bhps_data)
+
+summary(sex_anova)
+summary(avote_anova)
+summary(aregion_anova)
+summary(ajbstat_anova)
+summary(ajbterm_anova)
+summary(atenure_anova)
+```
+
+<br>
+
+However, after going through a series of statistical tests and analysis, the final variables that were significant in determining the Average Household Income of the individual are sex, age, political affiliation, no. of cars, weekly hours worked, metropolitan area, labor status, no. of persons in household and housing tenure.
+
+
+\newpage
+
+### Results and Exploratory Data Analysis:
+
+We then ran the model Model_1 which included all available variables, sex, aage, AJBHRS, ancars, avote, aregion, ajbstat, ajbterm, ahhsize and atenure. Coefficients with asterisks are significant at the 5 % level. All the variables except ajbterm were significant at the 5% level (if we consider ajbterm as a single variable). The R2 and Adj R2 were just above 0.2, which indicate not-so-good fit for model on actual data. They were also within 1% of one another. The F -statistic was highly significant with a value of less than 5%, indicating overall good fit of the model. The Standard Error of the model was very high which indicates a very high standard deviation within the data.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+# build linear regression model on full data
+Model_1 <- lm(afihhyr ~sex + aage + AJBHRS + ancars + avote + aregion + ajbstat + 
+                ajbterm + ahhsize + atenure, data=bhps_data)  
+summary(Model_1)
+```
+
+<br>
+As ajbterm was non-significant at the 5% level, it was removed from the regression Model_1. Using the backward elimination method of regression, we then re-ran the model, which formed Model_1_best. As can be seen from these statistics the models were comparable in terms fit, with Model_1_best having only significant variables. The Adj R2 also improved by a small amount. This confirm that our initial insight about ajb_term being less significantly related with afihhyr. 
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+## Step-wise Regression Model
+Model_1_best <- lm(afihhyr ~sex + aage + AJBHRS + ancars + avote + 
+                     aregion + ajbstat + ahhsize + atenure, data=bhps_data)  
+summary(Model_1_best)
+```
+
+<br>
+We can observe that sex of a person is an important parameter in determining the annual household income (afihhyr) as it is significant in all the models. As the age of the person increases by a year, the afihhyr increases by nearly 54 points, while when using log transformations, with every unit increases in log(aage), the log(afihhyr) increases by 0.064 points. As the AJBHRS increases by a point, the afihhyr increases by nearly 177 points, whereas when using log transformations, with every unit increases in log(AJBHRS), the log(afihhyr) increases by 0.233 points. The number of cars/vans available for private use is a very strong variable as with every single point, the afihhyr increases by 5884 points while with every point increase in log(ancars), the log(afihhyr) increases by 0.221 points. The variable political party supported has a positive impact on the afihhyr when it supports the category 3, and a negative impact when it supports category 2 or any other, however, since the p-value is not less than 0.05, it is susceptible to deviations from the above impact. The region/ metropolitan area of the person i.e. variable aregion has a positive impact on the afihhyr when the person is from category 3 or 18, and a negative impact when is from category 4. The current workforce status of the person i.e. variable ajbstat has a negative impact on the afihhyr. 
+
+The current job i.e. variable ajbtern had a low significance in the Model_1 and hence, it was removed in Model_1_best; however, when using the log model i.e. Model_2_log, it came out be a highly significant variable. The number of persons in the household i.e. variable ahhsize has been significant throughout all the models. As the ahhsize increases by a point, the afihhyr increases by nearly 1741 points, whereas when using log transformations, with every unit increases in log(ahhsize), the log(afihhyr) increases by 0.299 points. The housing tenure i.e. variable atenure has a negative impact on the afihhyr and there is a decrease of nearly 11212 points in the afihhyr when the tenure is of category 3.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+# build linear regression model on full data (with Log)
+Model_2_log <- lm(log(afihhyr) ~sex + log(aage) + log(AJBHRS) + ancars + avote + aregion + 
+                    ajbstat + ajbterm + log(ahhsize) + atenure, data=bhps_data)  
+summary(Model_2_log)
+```
+
+
+<br>
+Although there are certain variables in Model_2_log that have p-value of more than 0.05, they are still significant in predicting the annual household income, as when removing any of them further reduced the r-squared/ adj. r-squared value of the model. Model_2_log was the final model that resulted in the highest adjusted r-squared value and lowest standard error.
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+## Comparing all the 3 models
+stargazer(Model_1, Model_1_best, Model_2_log,type="text",
+          intercept.bottom = FALSE, 
+          single.row=FALSE,     
+          notes.append = FALSE, 
+          header=FALSE)
+
+```
+
+<br>
+The adjusted r-squared value of our first model i.e. Model_1 was 0.2384 when we ran it using all the available variables as Model_1_best, which slightly increased to 0.2387 when we removed the insignificant variable 'ajbterm' from the model, however the standard error was 11920 which is considered to be very high. After introducing log transformations in the data, the adjusted r-squared increased to 0.3238 with a standard error of 0.4561, which is highly significant as compared to the previous models. 
+
+The final regression equation is:
+log(Average Household Income) = 
+(8.25535) + (0.05609*sex2) + (0.06427*aage) + (0.23357*AJBHRS) + (0.22188*ancars) + (-0.02417 *avote2) + (0.01295*avote3) + (-0.09089*avoteOthers) + (0.06526*aregion3) + (-0.08203*aregion4) + (0.10814*aregion18) + (-0.04462*ajbstat2) + (0.1663*ajbstat6) + (-0.27415*ajbstat9) + (-0.06877 *ajbterm2) + (0.08337*ajbterm3) + (0.2993*ahhsize) + (0.13062*atenure2) + (-0.19679*atenure3) + (-0.06774*atenureOthers)
+
+
+
+The highest value for coefficient of determination i.e. adjusted r-squared that we achieved was 0.3238, which means that the current model is able to explain 32% of the variability within the data to predict the value of annual household income of the person. This sounds reasonable, as we are using very limited variables in the current dataset out of the various other variables that are captured during the survey and might be significant in the prediction. Hence, we it is safe to say that we need more explanatory variables and a larger dataset to better understand the factors that are significant in determining the annual household income.
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+### Residual Plots for the Final Model
+plot(fitted(Model_2_log), residuals(Model_2_log),abline(0, 0)) 
+```
+
+\newpage
+
+### Summary and Conclusion:
+
+We were given a sample dataset of 3500 records out of the total sample of 5000 households. From this sample, we had various information such as gender, age of the person, average working hours per week, number of car or van for private use, political party supported, region/ metropolitan area, current labour force status, current job, number of persons in Household, housing tenure and annual household income. The objective of this analysis was to understand the factors that are related to the annual household income of a person and how do they impact it.
+
+We initiated this analysis by performing some visual analysis to understand how an individual factor is impacting the annual household income, such as how the annual household income is different for men and women, how does the value of annual household income changes at an average if we reduce or increase the number of cars or number or persons in the household. Having a look at these individual factors visually with respect to the annual household income will help us better understand the relationship between them.
+
+In the next step we ran the regression using all the available factors, and analyzed the results. We could observe that there are certain factors that are not at all related to the annual household income and including them in the regression will do more harm to our analysis than good. Hence, we removed those factors and re-ran our regression analysis until we arrived at a point where all the factors were related to annual household income. This model was good however, there was still some scope of improvements to make it better. As the next step, we tried to transform certain factors of our data by bringing them into a similar scale i.e. same range and re-ran the regression on all available factors. In the results of the regression, we observed that all the factors when transformed to a similar scale were now related to the transformed value of annual household income. We then started to look for the extreme case or less frequent values in our data and remove them in order to further clean our data. Running the regression on this cleaned data further improved the score that is used to measure how the interactions between all the factors is related.
+
+The score that we use to measure the degree of strength for relationship between the available factors and annual household income was 34%. This means that are still some more factors that are related to the annual household income and can help us predict annual household income for households that we haven't surveyed. Also, the size of our dataset is not large enough to give us robust insights. The inference from this data may have some variations depending upon the various other factors that might be captured in our data or factors that are not a part of our data. 
+
+Age at the time of survey was one of strong factor to determine the annual household income along with factors such as number of cars owned, number of hours worked per week, average number of persons in the household etc. This is in-line with our intuitive knowledge that as the age of the person increases, the annual household income also increases. Similarly, increase in the number of private cars suggests improvement in the annual household income as well; higher the number of persons in the household better the annual household income of the household and higher the number of hours worked per week suggested higher annual household income. There were certain jobs and areas that displayed a positive impact on the annual household income whereas certain jobs and areas displayed negative impact on the annual household income. Interestingly, how the household had affinity to a political party was also related in determining the annual household income. Using the above knowledge about what are the factors that impact the annual household income and how, we can determine the annual household income for the household basis their given information about these factors.
